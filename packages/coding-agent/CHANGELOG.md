@@ -15,6 +15,8 @@
 
 ### Changed
 
+- `edit.mode` now defaults to `auto`: the edit protocol is routed by the active model's family (GPT/Codex → `apply_patch`; Claude/DeepSeek/Qwen → `replace`; MiniMax/GLM/Kimi/Moonshot and unknown models → `hashline`), independent of which provider serves the model. Resolution precedence is `GJC_EDIT_VARIANT`/`PI_EDIT_VARIANT` env force, then a matching `edit.modelVariants` rule, then explicit non-`auto` `edit.mode`, then a model-catalog recommendation, then the built-in family mapping, then the `hashline` fallback. Invalid forced env values fail fast and a matched-but-invalid `edit.modelVariants` value fails closed with a diagnostic instead of silently falling through. Persisted explicit `edit.mode` values and the `atom` → `hashline` migration are unchanged; `resolveEditModeDetails()` exposes the resolved mode with provenance (source, model, family, matched rule).
+
 - Deferred notification adapters, native bindings, provider construction, tools, skills, eval, session artifacts, and history storage until their feature paths are used, reducing the CLI startup module graph without changing default behavior.
 - Split SDK session hosting into a transport-neutral runtime and lazy notification adapters.
 
