@@ -64,6 +64,7 @@
         "@gajae-code/agent-core": "catalog:",
         "@gajae-code/ai": "catalog:",
         "@gajae-code/bridge-client": "catalog:",
+        "@gajae-code/memory-core": "catalog:",
         "@gajae-code/natives": "catalog:",
         "@gajae-code/stats": "catalog:",
         "@gajae-code/tui": "catalog:",
@@ -101,6 +102,13 @@
       },
       "dependencies": {
         "@gajae-code/coding-agent": "catalog:",
+      },
+    },
+    "packages/memory-core": {
+      "name": "@gajae-code/memory-core",
+      "version": "0.12.0",
+      "devDependencies": {
+        "@types/bun": "catalog:",
       },
     },
     "packages/natives": {
@@ -241,6 +249,7 @@
     "@gajae-code/ai": "0.12.0",
     "@gajae-code/bridge-client": "0.12.0",
     "@gajae-code/coding-agent": "0.12.0",
+    "@gajae-code/memory-core": "0.12.0",
     "@gajae-code/natives": "0.12.0",
     "@gajae-code/natives-darwin-arm64": "0.12.0",
     "@gajae-code/natives-darwin-x64": "0.12.0",
@@ -363,6 +372,8 @@
     "@gajae-code/bridge-client": ["@gajae-code/bridge-client@workspace:packages/bridge-client"],
 
     "@gajae-code/coding-agent": ["@gajae-code/coding-agent@workspace:packages/coding-agent"],
+
+    "@gajae-code/memory-core": ["@gajae-code/memory-core@workspace:packages/memory-core"],
 
     "@gajae-code/natives": ["@gajae-code/natives@workspace:packages/natives"],
 

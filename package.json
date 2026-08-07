@@ -24,6 +24,7 @@
       "@gajae-code/ai": "0.12.0",
       "@gajae-code/bridge-client": "0.12.0",
       "@gajae-code/coding-agent": "0.12.0",
+      "@gajae-code/memory-core": "0.12.0",
       "@gajae-code/natives": "0.12.0",
       "@gajae-code/natives-darwin-arm64": "0.12.0",
       "@gajae-code/natives-darwin-x64": "0.12.0",

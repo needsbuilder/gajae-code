@@ -32,9 +32,10 @@ concurrency:
 
 jobs:
   # Planner: resolve changed-path relevance and the affected task plan once, then
-  # fan the plan out into per-task shards. Emits the matrix, has_tasks/has_native
-  # flags, and the resolved changed paths so every downstream job reuses this
-  # exact diff via CI_DEV_CHANGED_PATHS instead of re-resolving the base ref.
+  # fan the plan out into per-task shards. Emits the matrix, has_tasks/has_native,
+  # has_python and the OS-specific regression flags, plus resolved changed paths so
+  # every downstream job reuses this exact diff via CI_DEV_CHANGED_PATHS instead of
+  # re-resolving the base ref.
   affected-plan:
     name: Affected path validation / plan
     runs-on: ubuntu-22.04
@@ -47,6 +48,7 @@ jobs:
       has_python: ${{ steps.plan.outputs.has_python }}
       has_darwin_arm64_tab_worker_smoke: ${{ steps.plan.outputs.has_darwin_arm64_tab_worker_smoke }}
       has_windows_session_path: ${{ steps.plan.outputs.has_windows_session_path }}
+      has_memory_determinism: ${{ steps.plan.outputs.has_memory_determinism }}
       changed_paths: ${{ steps.plan.outputs.changed_paths }}
       plan_mode: ${{ steps.plan.outputs.plan_mode }}
       plan_digest: ${{ steps.plan.outputs.plan_digest }}
@@ -236,6 +238,110 @@ jobs:
           bun test packages/coding-agent/test/session-manager/windows-canonical-path.test.ts
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+
+  # M2 deterministic memory contracts: run the identical byte-level golden plus the
+  # initialized-root/public CLI/session-ledger contract on Linux, macOS, and Windows
+  # only when the planner marks memory retrieval inputs, fixtures, or adapters as
+  # relevant. The tests stay provider-independent and do not install or invoke an
+  # external search binary.
+  memory-determinism-linux:
+    name: Memory deterministic golden / Linux
+    needs: [affected-plan]
+    if: ${{ needs.affected-plan.outputs.relevant == 'true' && needs.affected-plan.outputs.has_memory_determinism == 'true' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      CI_DEV_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify checked-out source head
+        shell: bash
+        run: |
+          head="$(git rev-parse HEAD)"
+          test "$head" = "$CI_DEV_SOURCE_SHA" || { echo "Checked-out SHA $head does not match $CI_DEV_SOURCE_SHA"; exit 1; }
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2
+        with:
+          bun-version: "1.3.14"
+      - name: Cache bun dependencies
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-1.3.14-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+      - run: bun install --frozen-lockfile
+      - name: Run memory deterministic golden contract
+        run: bun test packages/memory-core/test/search/retrieval-pipeline.test.ts
+      - name: Run memory M2 CLI / initialized-root session-ledger contract
+        run: bun test packages/coding-agent/test/cli/memory/memory-m2-cli.test.ts
+
+  memory-determinism-macos:
+    name: Memory deterministic golden / macOS
+    needs: [affected-plan]
+    if: ${{ needs.affected-plan.outputs.relevant == 'true' && needs.affected-plan.outputs.has_memory_determinism == 'true' }}
+    runs-on: macos-14
+    timeout-minutes: 30
+    env:
+      CI_DEV_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify checked-out source head
+        shell: bash
+        run: |
+          head="$(git rev-parse HEAD)"
+          test "$head" = "$CI_DEV_SOURCE_SHA" || { echo "Checked-out SHA $head does not match $CI_DEV_SOURCE_SHA"; exit 1; }
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2
+        with:
+          bun-version: "1.3.14"
+      - name: Cache bun dependencies
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-1.3.14-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+      - run: bun install --frozen-lockfile
+      - name: Run memory deterministic golden contract
+        run: bun test packages/memory-core/test/search/retrieval-pipeline.test.ts
+      - name: Run memory M2 CLI / initialized-root session-ledger contract
+        run: bun test packages/coding-agent/test/cli/memory/memory-m2-cli.test.ts
+
+  memory-determinism-windows:
+    name: Memory deterministic golden / Windows
+    needs: [affected-plan]
+    if: ${{ needs.affected-plan.outputs.relevant == 'true' && needs.affected-plan.outputs.has_memory_determinism == 'true' }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      CI_DEV_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify checked-out source head
+        shell: pwsh
+        run: |
+          $head = (git rev-parse HEAD).Trim()
+          if ($head -ne $env:CI_DEV_SOURCE_SHA) { throw "Checked-out SHA $head does not match $env:CI_DEV_SOURCE_SHA" }
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2
+        with:
+          bun-version: "1.3.14"
+      - name: Cache bun dependencies
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-1.3.14-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+      - run: bun install --frozen-lockfile
+      - name: Run memory deterministic golden contract
+        shell: pwsh
+        run: |
+          bun test packages/memory-core/test/search/retrieval-pipeline.test.ts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run memory M2 CLI / initialized-root session-ledger contract
+        shell: pwsh
+        run: |
+          bun test packages/coding-agent/test/cli/memory/memory-m2-cli.test.ts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   windows-native-build-toolchain:
     name: Windows native build toolchain path
@@ -615,7 +721,7 @@ jobs:
   affected-evidence-producer:
     name: Affected path validation / evidence producer
     if: ${{ always() }}
-    needs: [affected-plan, affected-native, affected-python-matrix, affected-shards, telegram-daemon-generation, windows-dev-doctor, windows-native-build-toolchain, windows-telegram-daemon-safety, affected-darwin-arm64-tab-worker-smoke]
+    needs: [affected-plan, affected-native, affected-python-matrix, affected-shards, telegram-daemon-generation, windows-dev-doctor, windows-native-build-toolchain, windows-telegram-daemon-safety, affected-darwin-arm64-tab-worker-smoke, memory-determinism-linux, memory-determinism-macos, memory-determinism-windows]
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     outputs:
@@ -684,6 +790,12 @@ jobs:
           CI_DEV_TELEGRAM_WINDOWS_REQUIRED: ${{ contains(needs.affected-plan.outputs.changed_paths, 'telegram-daemon') || contains(needs.affected-plan.outputs.changed_paths, 'chat-daemon-control.ts') || contains(needs.affected-plan.outputs.changed_paths, 'packages/coding-agent/src/sdk/broker/process-incarnation.ts') || contains(needs.affected-plan.outputs.changed_paths, 'daemon-control.test.ts') || contains(needs.affected-plan.outputs.changed_paths, 'notifications-telegram-daemon.test.ts') || contains(needs.affected-plan.outputs.changed_paths, 'chat-daemon') || contains(needs.affected-plan.outputs.changed_paths, 'crates/pi-natives/src/path_identity.rs') || contains(needs.affected-plan.outputs.changed_paths, 'crates/pi-natives/src/ps.rs') || contains(needs.affected-plan.outputs.changed_paths, 'crates/pi-shell/src/process.rs') || contains(needs.affected-plan.outputs.changed_paths, 'packages/natives/native/index.d.ts') }}
           CI_DEV_DARWIN_ARM64_TAB_WORKER_SMOKE_RESULT: ${{ needs.affected-darwin-arm64-tab-worker-smoke.result }}
           CI_DEV_DARWIN_ARM64_TAB_WORKER_SMOKE_REQUIRED: ${{ needs.affected-plan.outputs.has_darwin_arm64_tab_worker_smoke }}
+          CI_DEV_MEMORY_DETERMINISM_LINUX_RESULT: ${{ needs.memory-determinism-linux.result }}
+          CI_DEV_MEMORY_DETERMINISM_LINUX_REQUIRED: ${{ needs.affected-plan.outputs.has_memory_determinism }}
+          CI_DEV_MEMORY_DETERMINISM_MACOS_RESULT: ${{ needs.memory-determinism-macos.result }}
+          CI_DEV_MEMORY_DETERMINISM_MACOS_REQUIRED: ${{ needs.affected-plan.outputs.has_memory_determinism }}
+          CI_DEV_MEMORY_DETERMINISM_WINDOWS_RESULT: ${{ needs.memory-determinism-windows.result }}
+          CI_DEV_MEMORY_DETERMINISM_WINDOWS_REQUIRED: ${{ needs.affected-plan.outputs.has_memory_determinism }}
         run: bun scripts/ci-dev-affected.ts --write-affected-evidence
       - name: Upload affected evidence
         id: upload-evidence
@@ -704,7 +816,7 @@ jobs:
   affected:
     name: Affected path validation
     if: ${{ always() }}
-    needs: [affected-evidence-producer, affected-plan, affected-native, affected-python-matrix, affected-shards, telegram-daemon-generation, windows-dev-doctor, windows-native-build-toolchain, windows-telegram-daemon-safety, affected-darwin-arm64-tab-worker-smoke]
+    needs: [affected-evidence-producer, affected-plan, affected-native, affected-python-matrix, affected-shards, telegram-daemon-generation, windows-dev-doctor, windows-native-build-toolchain, windows-telegram-daemon-safety, affected-darwin-arm64-tab-worker-smoke, memory-determinism-linux, memory-determinism-macos, memory-determinism-windows]
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     env:
@@ -725,6 +837,12 @@ jobs:
       CI_DEV_WINDOWS_NATIVE_TOOLCHAIN_REQUIRED: ${{ contains(needs.affected-plan.outputs.changed_paths, 'packages/natives/scripts/build-native.ts') || contains(needs.affected-plan.outputs.changed_paths, 'packages/natives/scripts/rust-toolchain-path.ts') || contains(needs.affected-plan.outputs.changed_paths, 'packages/natives/test/build-native-profile.test.ts') || contains(needs.affected-plan.outputs.changed_paths, 'scripts/ci-build-native.ts') }}
       CI_DEV_DARWIN_ARM64_TAB_WORKER_SMOKE_RESULT: ${{ needs.affected-plan.outputs.has_darwin_arm64_tab_worker_smoke == 'true' && 'success' || 'skipped' }}
       CI_DEV_DARWIN_ARM64_TAB_WORKER_SMOKE_REQUIRED: ${{ needs.affected-plan.outputs.has_darwin_arm64_tab_worker_smoke }}
+      CI_DEV_MEMORY_DETERMINISM_LINUX_RESULT: ${{ needs.memory-determinism-linux.result }}
+      CI_DEV_MEMORY_DETERMINISM_LINUX_REQUIRED: ${{ needs.affected-plan.outputs.has_memory_determinism }}
+      CI_DEV_MEMORY_DETERMINISM_MACOS_RESULT: ${{ needs.memory-determinism-macos.result }}
+      CI_DEV_MEMORY_DETERMINISM_MACOS_REQUIRED: ${{ needs.affected-plan.outputs.has_memory_determinism }}
+      CI_DEV_MEMORY_DETERMINISM_WINDOWS_RESULT: ${{ needs.memory-determinism-windows.result }}
+      CI_DEV_MEMORY_DETERMINISM_WINDOWS_REQUIRED: ${{ needs.affected-plan.outputs.has_memory_determinism }}
       CI_DEV_TELEGRAM_GUARD_RESULT: ${{ needs.telegram-daemon-generation.result }}
       CI_DEV_TELEGRAM_GUARD_REQUIRED: ${{ needs.affected-plan.outputs.relevant }}
       CI_DEV_TELEGRAM_WINDOWS_RESULT: ${{ needs.windows-telegram-daemon-safety.result }}

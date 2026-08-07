@@ -47,6 +47,10 @@ import { FindTool } from "./find";
 import { GithubTool } from "./gh";
 import { IrcTool } from "./irc";
 import { JobTool } from "./job";
+import { MemoryCheckpointTool } from "./memory/memory-checkpoint";
+import { MemoryForgetTool } from "./memory/memory-forget";
+import { MemoryProposeWriteTool } from "./memory/memory-propose-write";
+import { MemoryRecallTool } from "./memory/memory-recall";
 import { MonitorTool } from "./monitor";
 import { wrapToolWithMetaNotice } from "./output-meta";
 import { ReadTool } from "./read";
@@ -88,6 +92,10 @@ export * from "./gh";
 export * from "./image-gen";
 export * from "./irc";
 export * from "./job";
+export * from "./memory/memory-checkpoint";
+export * from "./memory/memory-forget";
+export * from "./memory/memory-propose-write";
+export * from "./memory/memory-recall";
 export * from "./monitor";
 export * from "./read";
 export * from "./recipe";
@@ -431,8 +439,8 @@ export function computeEssentialBuiltinNames(settings: Settings): string[] {
  * Public callable factory map. External callers may invoke `BUILTIN_TOOLS.read(session)` or
  * `BUILTIN_TOOLS[name](session)` to construct a public coding-harness tool directly.
  *
- * Hindsight memory helpers are intentionally excluded: memory is a private backend
- * integration, not a public gajae-code tool surface.
+ * Legacy Hindsight memory helpers are intentionally excluded; the M6 memory-core
+ * adapters below are public tools gated on an initialized memory root.
  */
 export interface BuiltinCapabilityCatalogEntry {
 	name: string;
@@ -475,6 +483,10 @@ export const BUILTIN_TOOLS: Record<string, ToolFactory> = {
 	search: s => new SearchTool(s),
 	lsp: LspTool.createIf,
 	browser: s => new BrowserTool(s),
+	memory_recall: MemoryRecallTool.createIf,
+	memory_checkpoint: MemoryCheckpointTool.createIf,
+	memory_propose_write: MemoryProposeWriteTool.createIf,
+	memory_forget: MemoryForgetTool.createIf,
 	...(isComputerLoadablePlatform() ? { computer: ComputerTool.createIf } : {}),
 	checkpoint: CheckpointTool.createIf,
 	rewind: RewindTool.createIf,
